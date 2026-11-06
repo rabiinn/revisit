@@ -10,6 +10,8 @@ import cookieParser from "cookie-parser";
 import authRouter from "./modules/auth/auth.routes.ts";
 import { notFound } from "./middleware/notFound.ts";
 import { errorHandler } from "./middleware/errorHandler.ts";
+import subjectsRouter from "./modules/subjects/subjects.routes.ts";
+import tasksRouter from "./modules/tasks/tasks.routes.ts";
 
 const app = express();
 
@@ -30,6 +32,8 @@ app.get("/api/health", async (_req: Request, res: Response) => {
 });
 
 app.use("/api/auth", authRouter);
+app.use("/api/subjects", subjectsRouter);
+app.use("/api/tasks", tasksRouter);
 app.use(notFound);
 app.use(errorHandler);
 
