@@ -13,7 +13,7 @@ import { relations } from "drizzle-orm";
 const id = () => uuid().primaryKey().defaultRandom();
 
 const createdAt = () =>
-  timestamp({ withTimezone: true }).notNull().defaultNow();
+  timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
 
 export const reviewRating = pgEnum("review_rating", [
   "again",

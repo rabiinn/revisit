@@ -17,6 +17,6 @@ export async function authMiddleware(
     req.userId = userId;
     next();
   } catch (error) {
-    res.status(401).json({ error: "Not authenticated" });
+    next(error);
   }
 }

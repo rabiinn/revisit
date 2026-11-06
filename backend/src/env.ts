@@ -1,4 +1,4 @@
-import { z, ZodError } from "zod";
+import { z } from "zod";
 import dotenv from "dotenv";
 
 const nodeEnv = process.env.NODE_ENV ?? "development";
