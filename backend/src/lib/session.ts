@@ -1,5 +1,5 @@
 import type { CookieOptions } from "express";
-import { jwtVerify, SignJWT } from "jose";
+import { errors, jwtVerify, SignJWT } from "jose";
 import { env, isProd } from "../env.ts";
 
 const SESSION_SECONDS = 60 * 60 * 24 * 7; // 7 days
@@ -26,8 +26,13 @@ export function createSessionToken(userId: string) {
 }
 
 export async function verifySessionToken(token: string) {
-  const { payload } = await jwtVerify(token, secret, {
-    algorithms: ["HS256"],
-  });
-  return payload.sub;
+  try {
+    const { payload } = await jwtVerify(token, secret, {
+      algorithms: ["HS256"],
+    });
+    return payload.sub;
+  } catch (error) {
+    if (error instanceof errors.JOSEError) return undefined;
+    throw error;
+  }
 }

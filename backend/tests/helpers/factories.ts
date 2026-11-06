@@ -1,0 +1,45 @@
+import { db } from "../../src/db/index.ts";
+import { users } from "../../src/db/schema.ts";
+import { hashPassword } from "../../src/lib/password.ts";
+import { SEED_USERS, type SeedUserKey } from "../fixtures/users.ts";
+
+export type TestUser = { id: string; email: string; password: string };
+
+// Argon2 is deliberately slow, so hash each password only once per test file
+const hashCache = new Map<string, Promise<string>>();
+
+function cachedHash(password: string) {
+  let hash = hashCache.get(password);
+  if (!hash) {
+    hash = hashPassword(password);
+    hashCache.set(password, hash);
+  }
+  return hash;
+}
+
+let userCount = 0;
+
+export async function createUser(
+  overrides: { email?: string; password?: string } = {},
+): Promise<TestUser> {
+  userCount += 1;
+  const email = overrides.email ?? `user${userCount}@example.com`;
+  const password = overrides.password ?? "password-123";
+
+  const [user] = await db
+    .insert(users)
+    .values({ email, passwordHash: await cachedHash(password) })
+    .returning({ id: users.id, email: users.email });
+
+  if (!user) throw new Error("Failed to create test user");
+  return { ...user, password };
+}
+
+export async function seedUsers() {
+  const entries = await Promise.all(
+    Object.entries(SEED_USERS).map(
+      async ([key, data]) => [key, await createUser(data)] as const,
+    ),
+  );
+  return Object.fromEntries(entries) as Record<SeedUserKey, TestUser>;
+}

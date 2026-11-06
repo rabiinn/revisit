@@ -4,12 +4,14 @@ import { authMiddleware } from "../../middleware/auth.ts";
 import { register, login, logout, me } from "./auth.controller.ts";
 import { validateBody } from "../../middleware/validation.ts";
 import { loginSchema, registerSchema } from "./auth.schemas.ts";
+import { isTestEnv } from "../../env.ts";
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 20,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => isTestEnv(),
   message: { error: "Too many attempts. Please try again later." },
 });
 
