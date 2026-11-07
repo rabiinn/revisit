@@ -8,6 +8,13 @@
       "when": 1793914693822,
       "tag": "0000_wonderful_angel",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794009136115,
+      "tag": "0001_cheerful_excalibur",
+      "breakpoints": true
     }
   ]
 }

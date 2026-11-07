@@ -1,4 +1,4 @@
-import { eq, asc, and } from "drizzle-orm";
+import { eq, asc, and, sql } from "drizzle-orm";
 import { db } from "../../db/index.ts";
 import { subjects } from "../../db/schema.ts";
 
@@ -26,9 +26,15 @@ export async function findOrCreateSubject(
   if (created) return created;
 
   const existing = await tx.query.subjects.findFirst({
-    where: and(eq(subjects.userId, userId), eq(subjects.name, name)),
+    where: and(
+      eq(subjects.userId, userId),
+      sql`lower(${subjects.name}) = lower(${name})`,
+    ),
   });
-  if (!existing)
+
+  if (!existing) {
     throw new Error(`Subject ${name} couldnot be found or created`);
+  }
+
   return existing;
 }

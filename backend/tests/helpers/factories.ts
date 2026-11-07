@@ -2,8 +2,10 @@ import { db } from "../../src/db/index.ts";
 import { users } from "../../src/db/schema.ts";
 import { hashPassword } from "../../src/lib/password.ts";
 import { SEED_USERS, type SeedUserKey } from "../fixtures/users.ts";
+import { tasks } from "../../src/db/schema.ts";
 
 export type TestUser = { id: string; email: string; password: string };
+type TaskOverrides = Partial<Omit<typeof tasks.$inferInsert, "userId">>;
 
 // Argon2 is deliberately slow, so hash each password only once per test file
 const hashCache = new Map<string, Promise<string>>();
@@ -42,4 +44,17 @@ export async function seedUsers() {
     ),
   );
   return Object.fromEntries(entries) as Record<SeedUserKey, TestUser>;
+}
+
+export async function createTask(
+  userId: string,
+  overrides: TaskOverrides = {},
+) {
+  const [task] = await db
+    .insert(tasks)
+    .values({ userId, title: "Read chapter 1", ...overrides })
+    .returning();
+
+  if (!task) throw new Error("Failed to create test task");
+  return task;
 }

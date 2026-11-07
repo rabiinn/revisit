@@ -5,10 +5,10 @@ import {
   pgTable,
   text,
   timestamp,
-  unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 
 const id = () => uuid().primaryKey().defaultRandom();
 
@@ -39,7 +39,12 @@ export const subjects = pgTable(
     name: text().notNull(),
     createdAt: createdAt(),
   },
-  (table) => [unique().on(table.userId, table.name)],
+  (table) => [
+    uniqueIndex("subject_user_id_name_lower_idx").on(
+      table.userId,
+      sql`lower(${table.name})`,
+    ),
+  ],
 );
 
 export const tasks = pgTable(
