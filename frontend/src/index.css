@@ -1,1 +1,39 @@
-@import "tailwindcss"
+@import "tailwindcss";
+
+@theme {
+  /* Text and dark surfaces */
+  --color-ink: #15192b;
+  --color-ink-soft: #252b42;
+
+  /* Backgrounds */
+  --color-paper: #f4f5f8;
+  --color-surface: #ffffff;
+
+  /* Borders */
+  --color-line: #d9dce5;
+  --color-line-soft: #e8eaf0;
+
+  /* Secondary text and input borders */
+  --color-muted: #565d73;
+  --color-field: #8a90a3;
+
+  /* Main action color */
+  --color-accent: #2743d2;
+  --color-accent-soft: #eef0fc;
+  --color-accent-ink: #1b2f99;
+
+  /* Highlights and status */
+  --color-highlight: #ffc83d;
+  --color-notice: #ffe8a3;
+  --color-warning: #a33f00;
+}
+
+@layer base {
+  body {
+    @apply bg-paper text-ink antialiased;
+  }
+
+  :focus-visible {
+    @apply outline-3 outline-offset-2 outline-ink;
+  }
+}
