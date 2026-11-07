@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import type {
   ListTasksQuery,
-  TaskIdType,
+  TaskIdParams,
   CreateTaskInput,
   UpdateTaskInput,
   CompleteTaskInput,
@@ -13,7 +13,7 @@ export async function listTasks(req: Request, res: Response) {
   res.json({ tasks: await tasksService.listTasks(req.userId!, status) });
 }
 
-export async function getTask(req: Request<TaskIdType>, res: Response) {
+export async function getTask(req: Request<TaskIdParams>, res: Response) {
   res.json({ task: await tasksService.getTask(req.userId!, req.params.id) });
 }
 
@@ -26,7 +26,7 @@ export async function createTask(
 }
 
 export async function updateTask(
-  req: Request<TaskIdType, unknown, UpdateTaskInput>,
+  req: Request<TaskIdParams, unknown, UpdateTaskInput>,
   res: Response,
 ) {
   const task = await tasksService.updateTask(
@@ -37,13 +37,13 @@ export async function updateTask(
   res.json({ task });
 }
 
-export async function deleteTask(req: Request<TaskIdType>, res: Response) {
+export async function deleteTask(req: Request<TaskIdParams>, res: Response) {
   await tasksService.deleteTask(req.userId!, req.params.id);
   res.status(204).send();
 }
 
 export async function completeTask(
-  req: Request<TaskIdType, unknown, CompleteTaskInput>,
+  req: Request<TaskIdParams, unknown, CompleteTaskInput>,
   res: Response,
 ) {
   res.json(
@@ -51,7 +51,7 @@ export async function completeTask(
   );
 }
 
-export async function reopenTask(req: Request<TaskIdType>, res: Response) {
+export async function reopenTask(req: Request<TaskIdParams>, res: Response) {
   const task = await tasksService.reopenTask(req.userId!, req.params.id);
   res.json({ task });
 }

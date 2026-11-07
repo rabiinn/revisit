@@ -19,6 +19,7 @@ function ownedTask(userId: string, taskId: string) {
 }
 
 export function listTasks(userId: string, status: ListTasksQuery["status"]) {
+  // If status == all, returned all tasks(undefined here means drizzle will discard the condition)
   const statusFilter =
     status === "open"
       ? isNull(tasks.completedAt)

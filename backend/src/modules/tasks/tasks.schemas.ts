@@ -42,7 +42,7 @@ export const completeTaskSchema = z.object({
   reviewInDays: z.number().int().min(1).max(60).optional(),
 });
 
-export type TaskIdType = z.infer<typeof taskIdParamsSchema>;
+export type TaskIdParams = z.infer<typeof taskIdParamsSchema>;
 export type ListTasksQuery = z.infer<typeof listTasksQuerySchema>;
 export type CreateTaskInput = z.infer<typeof createTaskSchema>;
 export type UpdateTaskInput = z.infer<typeof updateTaskSchema>;

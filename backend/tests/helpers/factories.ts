@@ -1,5 +1,5 @@
 import { db } from "../../src/db/index.ts";
-import { users } from "../../src/db/schema.ts";
+import { users, questions, topics } from "../../src/db/schema.ts";
 import { hashPassword } from "../../src/lib/password.ts";
 import { SEED_USERS, type SeedUserKey } from "../fixtures/users.ts";
 import { tasks } from "../../src/db/schema.ts";
@@ -57,4 +57,42 @@ export async function createTask(
 
   if (!task) throw new Error("Failed to create test task");
   return task;
+}
+
+type TopicOverrides = Partial<Omit<typeof topics.$inferInsert, "userId">>;
+
+export async function createTopic(
+  userId: string,
+  overrides: TopicOverrides = {},
+) {
+  const [topic] = await db
+    .insert(topics)
+    .values({ userId, name: "Hash joins", dueAt: new Date(), ...overrides })
+    .returning();
+
+  if (!topic) throw new Error("Failed to create test topic");
+  return topic;
+}
+
+type QuestionOverrides = Partial<
+  Omit<typeof questions.$inferInsert, "topicId">
+>;
+
+export async function createQuestion(
+  topicId: string,
+  overrides: QuestionOverrides = {},
+) {
+  const [question] = await db
+    .insert(questions)
+    .values({
+      topicId,
+      question: "How does a hash join work?",
+      answer:
+        "It builds a hash table from one input, then probes it with the other.",
+      ...overrides,
+    })
+    .returning();
+
+  if (!question) throw new Error("Failed to create test question");
+  return question;
 }

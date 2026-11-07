@@ -1,5 +1,5 @@
 import { eq, asc, and, sql } from "drizzle-orm";
-import { db } from "../../db/index.ts";
+import { db, type DbTansaction } from "../../db/index.ts";
 import { subjects } from "../../db/schema.ts";
 
 export function listSubjects(userId: string) {
@@ -11,7 +11,7 @@ export function listSubjects(userId: string) {
 }
 
 export async function findOrCreateSubject(
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  tx: DbTansaction,
   userId: string,
   name: string,
 ) {
