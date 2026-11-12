@@ -1,6 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { ApiError } from "./api";
 const MAX_RETRIES = 2;
+
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
