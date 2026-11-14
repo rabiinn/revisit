@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { tasksQueryOptions } from "../../features/tasks/tasks.api";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { TaskRow } from "../../features/tasks/TaskRow";
+import { AddTaskForm } from "../../features/tasks/AddTaskForm";
 export const Route = createFileRoute("/_app/")({
   loader: ({ context }) => context.queryClient.query(tasksQueryOptions()),
   errorComponent: () => (
@@ -45,6 +46,8 @@ function TodayPage() {
           <h2 id="tasks-heading" className="text-xl font-semibold">
             Study tasks
           </h2>
+
+          <AddTaskForm />
 
           {tasks.length === 0 ? (
             <p className="mt-4 text-muted">No tasks yet. Add what you plan to study.</p>
