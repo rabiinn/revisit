@@ -14,6 +14,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppTopicsRouteImport } from './routes/_app/topics'
+import { Route as AppTasksTaskIdFinishRouteImport } from './routes/_app/tasks.$taskId.finish'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -39,18 +40,25 @@ const AppTopicsRoute = AppTopicsRouteImport.update({
   path: '/topics',
   getParentRoute: () => AppRoute,
 } as any)
+const AppTasksTaskIdFinishRoute = AppTasksTaskIdFinishRouteImport.update({
+  id: '/tasks/$taskId/finish',
+  path: '/tasks/$taskId/finish',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/topics': typeof AppTopicsRoute
+  '/tasks/$taskId/finish': typeof AppTasksTaskIdFinishRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/topics': typeof AppTopicsRoute
   '/': typeof AppIndexRoute
+  '/tasks/$taskId/finish': typeof AppTasksTaskIdFinishRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -59,13 +67,21 @@ export interface FileRoutesById {
   '/register': typeof RegisterRoute
   '/_app/topics': typeof AppTopicsRoute
   '/_app/': typeof AppIndexRoute
+  '/_app/tasks/$taskId/finish': typeof AppTasksTaskIdFinishRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/register' | '/topics'
+  fullPaths: '/' | '/login' | '/register' | '/topics' | '/tasks/$taskId/finish'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/register' | '/topics' | '/'
-  id: '__root__' | '/_app' | '/login' | '/register' | '/_app/topics' | '/_app/'
+  to: '/login' | '/register' | '/topics' | '/' | '/tasks/$taskId/finish'
+  id:
+    | '__root__'
+    | '/_app'
+    | '/login'
+    | '/register'
+    | '/_app/topics'
+    | '/_app/'
+    | '/_app/tasks/$taskId/finish'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -111,17 +127,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTopicsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/tasks/$taskId/finish': {
+      id: '/_app/tasks/$taskId/finish'
+      path: '/tasks/$taskId/finish'
+      fullPath: '/tasks/$taskId/finish'
+      preLoaderRoute: typeof AppTasksTaskIdFinishRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
 interface AppRouteChildren {
   AppTopicsRoute: typeof AppTopicsRoute
   AppIndexRoute: typeof AppIndexRoute
+  AppTasksTaskIdFinishRoute: typeof AppTasksTaskIdFinishRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppTopicsRoute: AppTopicsRoute,
   AppIndexRoute: AppIndexRoute,
+  AppTasksTaskIdFinishRoute: AppTasksTaskIdFinishRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
