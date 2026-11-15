@@ -25,5 +25,9 @@ export async function fakeVerifyPassword(password: string) {
 }
 
 export function passwordNeedsRehash(hash: string) {
-  return argon2.needsRehash(hash);
+  return argon2.needsRehash(hash, {
+    memoryCost: 19456,
+    timeCost: 2,
+    parallelism: 1,
+  });
 }
