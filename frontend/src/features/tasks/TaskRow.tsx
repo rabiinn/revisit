@@ -1,5 +1,13 @@
+import { useReopenTask } from "./tasks.api";
 import type { Task } from "./task.schemas";
+import { CheckBox } from "../../components/ui/CheckBox";
+import { Link } from "@tanstack/react-router";
+// 44px tap area around the 24px box
+const checkTargetClasses =
+  "flex size-11 flex-none items-center justify-center rounded-lg hover:bg-ink/5";
+
 export function TaskRow({ task }: { task: Task }) {
+  const reopenTask = useReopenTask();
   const isDone = task.completedAt !== null;
   const meta = [
     task.subject?.name,
@@ -9,30 +17,37 @@ export function TaskRow({ task }: { task: Task }) {
     .join(" / ");
 
   return (
-    <li className="flex items-center gap-3 border-t border-line-soft py-3">
-      <span
-        aria-hidden="true"
-        className={`flex size-6 flex-none items-center justify-center rounded-md border-2 ${
-          isDone ? "border-accent bg-accent" : "border-muted bg-surface"
-        }`}>
-        {isDone && (
-          <svg
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="white"
-            strokeWidth="2.5"
-            className="size-4">
-            <path d="M3 8.5 6.5 12 13 4.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        )}
-      </span>
+    <li className="flex items-center gap-1 border-t border-line-soft py-2">
+      {isDone ? (
+        <button
+          type="button"
+          onClick={() => reopenTask.mutate(task.id)}
+          disabled={reopenTask.isPending}
+          aria-label={`Reopen: ${task.title}`}
+          className={`${checkTargetClasses} disabled:opacity-60`}>
+          <CheckBox checked />
+        </button>
+      ) : (
+        <Link
+          to="/tasks/$taskId/finish"
+          params={{ taskId: task.id }}
+          aria-label={`Mark done: ${task.title}`}
+          className={checkTargetClasses}>
+          <CheckBox checked={false} />
+        </Link>
+      )}
 
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 pl-2">
         <p className={`font-medium ${isDone ? "text-muted line-through" : ""}`}>
           {isDone && <span className="sr-only">Completed: </span>}
           {task.title}
         </p>
         {meta && <p className="text-sm text-muted">{meta}</p>}
+        {reopenTask.isError && (
+          <p role="alert" className="text-sm font-medium text-warning">
+            The task could not be reopened. Please try again.
+          </p>
+        )}
       </div>
     </li>
   );
