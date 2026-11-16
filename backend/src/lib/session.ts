@@ -17,7 +17,7 @@ export const sessionCookieOptions: CookieOptions = {
 export const sessionMaxAge = SESSION_SECONDS * 1000;
 
 export function createSessionToken(userId: string) {
-  return new SignJWT()
+  return new SignJWT({ id: userId, name: "Rabin Adhikari", ghar: "Nepal" })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(userId)
     .setIssuedAt()
@@ -32,6 +32,7 @@ export async function verifySessionToken(token: string) {
     });
     return payload.sub;
   } catch (error) {
+    // Treat invalid tokens as expected authentication outcome
     if (error instanceof errors.JOSEError) return undefined;
     throw error;
   }
