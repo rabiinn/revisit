@@ -32,11 +32,9 @@ export const completeTaskSchema = z.object({
     .array(z.string().trim().min(1).max(120))
     .max(10)
     .default([])
-    .refine(
-      (names) =>
-        new Set(names.map((name) => name.toLowerCase())).size === names.length,
-      { message: "Topic names must be unique" },
-    ),
+    .refine((names) => new Set(names.map((name) => name.toLowerCase())).size === names.length, {
+      error: "Topic names must be unique",
+    }),
   confidence: z.enum(CONFIDENCE_LEVELS).default("okay"),
   note: z.string().trim().max(1000).optional(),
   reviewInDays: z.number().int().min(1).max(60).optional(),

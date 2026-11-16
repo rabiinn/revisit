@@ -1,5 +1,5 @@
 import { eq, asc, and, sql } from "drizzle-orm";
-import { db, type DbTansaction } from "../../db/index.ts";
+import { db, type DbTransaction } from "../../db/index.ts";
 import { subjects } from "../../db/schema.ts";
 
 export function listSubjects(userId: string) {
@@ -10,26 +10,14 @@ export function listSubjects(userId: string) {
   });
 }
 
-export async function findOrCreateSubject(
-  tx: DbTansaction,
-  userId: string,
-  name: string,
-) {
+export async function findOrCreateSubject(tx: DbTransaction, userId: string, name: string) {
   // Insert first and handle conflict(safer than checking first and then inserting)
-
-  const [created] = await tx
-    .insert(subjects)
-    .values({ userId, name })
-    .onConflictDoNothing()
-    .returning();
+  const [created] = await tx.insert(subjects).values({ userId, name }).onConflictDoNothing().returning();
 
   if (created) return created;
 
   const existing = await tx.query.subjects.findFirst({
-    where: and(
-      eq(subjects.userId, userId),
-      sql`lower(${subjects.name}) = lower(${name})`,
-    ),
+    where: and(eq(subjects.userId, userId), sql`lower(${subjects.name}) = lower(${name})`),
   });
 
   if (!existing) {
