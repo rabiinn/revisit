@@ -4,11 +4,7 @@ import { db } from "../../src/db/index.ts";
 import { reviews, subjects } from "../../src/db/schema.ts";
 import { daysFromToday } from "../../src/lib/scheduling.ts";
 import { api, loginAs } from "../helpers/auth.ts";
-import {
-  createQuestion,
-  createTopic,
-  seedUsers,
-} from "../helpers/factories.ts";
+import { createQuestion, createTopic, seedUsers } from "../helpers/factories.ts";
 import type { TestUser } from "../helpers/factories.ts";
 
 type Agent = Awaited<ReturnType<typeof loginAs>>;
@@ -35,9 +31,7 @@ describe("GET /api/topics", () => {
     const res = await agent.get("/api/topics");
 
     expect(res.status).toBe(200);
-    expect(
-      res.body.topics.map((topic: { name: string }) => topic.name),
-    ).toEqual(["Sooner", "Later"]);
+    expect(res.body.topics.map((topic: { name: string }) => topic.name)).toEqual(["Sooner", "Later"]);
   });
 
   it("returns only due topics when asked", async () => {
@@ -47,16 +41,11 @@ describe("GET /api/topics", () => {
 
     const res = await agent.get("/api/topics?dueOnly=true");
 
-    expect(
-      res.body.topics.map((topic: { name: string }) => topic.name),
-    ).toEqual(["Overdue", "Due today"]);
+    expect(res.body.topics.map((topic: { name: string }) => topic.name)).toEqual(["Overdue", "Due today"]);
   });
 
   it("filters by subject", async () => {
-    const [databases] = await db
-      .insert(subjects)
-      .values({ userId: alice.id, name: "Databases" })
-      .returning();
+    const [databases] = await db.insert(subjects).values({ userId: alice.id, name: "Databases" }).returning();
     await createTopic(alice.id, {
       name: "Hash joins",
       subjectId: databases!.id,
@@ -72,17 +61,36 @@ describe("GET /api/topics", () => {
     });
   });
 
-  it("includes the interval for each rating button", async () => {
-    await createTopic(alice.id, { intervalDays: 3 });
+  it("includes FSRS's rating options and the chance of remembering", async () => {
+    await createTopic(alice.id);
 
     const res = await agent.get("/api/topics");
+    const [topic] = res.body.topics;
 
-    expect(res.body.topics[0].reviewOptions).toEqual({
-      again: 1,
-      hard: 4,
-      good: 7,
-      easy: 10,
-    });
+    const { again, hard, good, easy } = topic.reviewOptions;
+    expect(again).toBeGreaterThanOrEqual(1);
+    expect(again).toBeLessThanOrEqual(hard);
+    expect(hard).toBeLessThanOrEqual(good);
+    expect(good).toBeLessThanOrEqual(easy);
+
+    expect(topic.recallProbability).toBeGreaterThan(0);
+    expect(topic.recallProbability).toBeLessThanOrEqual(1);
+    expect(topic).not.toHaveProperty("strength");
+  });
+
+  it("shows a lower chance of remembering for topics studied longer ago", async () => {
+    await createTopic(alice.id, { name: "Fresh" });
+    await createTopic(alice.id, { name: "Older", lastReviewAt: daysFromToday(-10) });
+
+    const res = await agent.get("/api/topics");
+    const recall = Object.fromEntries(
+      res.body.topics.map((topic: { name: string; recallProbability: number }) => [
+        topic.name,
+        topic.recallProbability,
+      ]),
+    );
+
+    expect(recall.Older).toBeLessThan(recall.Fresh);
   });
 });
 
@@ -137,69 +145,55 @@ describe("DELETE /api/topics/:id", () => {
 });
 
 describe("POST /api/topics/:id/reviews", () => {
-  it("schedules the next review from a good rating", async () => {
-    const topic = await createTopic(alice.id, {
-      intervalDays: 3,
-      strength: 50,
-    });
+  it("rates a recall with FSRS, matching what the button showed", async () => {
+    const topic = await createTopic(alice.id);
+    const { reviewOptions } = (await agent.get(`/api/topics/${topic.id}`)).body.topic;
 
-    const res = await agent
-      .post(`/api/topics/${topic.id}/reviews`)
-      .send({ rating: "good" });
+    const res = await agent.post(`/api/topics/${topic.id}/reviews`).send({ rating: "good" });
 
     expect(res.status).toBe(201);
     expect(res.body.topic).toMatchObject({
-      intervalDays: 7,
-      strength: 62,
-      dueAt: daysFromToday(7).toISOString(),
+      reps: topic.reps + 1,
+      lapses: 0,
+      scheduledDays: reviewOptions.good,
+      dueAt: daysFromToday(reviewOptions.good).toISOString(),
     });
+
+    // The log keeps the state from before the review, and the interval it chose
     expect(res.body.review).toMatchObject({
       rating: "good",
-      previousIntervalDays: 3,
-      nextIntervalDays: 7,
+      stabilityBefore: topic.stability,
+      scheduledDaysBefore: topic.scheduledDays,
+      scheduledDays: reviewOptions.good,
     });
   });
 
-  it("resets the interval when the topic was forgotten", async () => {
-    const topic = await createTopic(alice.id, {
-      intervalDays: 12,
-      strength: 10,
+  it("counts a forgotten topic as a lapse and brings it back tomorrow", async () => {
+    const topic = await createTopic(alice.id);
+
+    const res = await agent.post(`/api/topics/${topic.id}/reviews`).send({ rating: "again" });
+
+    expect(res.body.topic).toMatchObject({
+      lapses: 1,
+      scheduledDays: 1,
+      dueAt: daysFromToday(1).toISOString(),
     });
-
-    const res = await agent
-      .post(`/api/topics/${topic.id}/reviews`)
-      .send({ rating: "again" });
-
-    expect(res.body.topic).toMatchObject({ intervalDays: 1, strength: 5 });
   });
 
   it("saves a review for every rating", async () => {
     const topic = await createTopic(alice.id);
 
-    await agent
-      .post(`/api/topics/${topic.id}/reviews`)
-      .send({ rating: "hard" });
-    await agent
-      .post(`/api/topics/${topic.id}/reviews`)
-      .send({ rating: "easy" });
+    await agent.post(`/api/topics/${topic.id}/reviews`).send({ rating: "hard" });
+    await agent.post(`/api/topics/${topic.id}/reviews`).send({ rating: "easy" });
 
-    const saved = await db
-      .select()
-      .from(reviews)
-      .where(eq(reviews.topicId, topic.id));
-    expect(saved.map((review) => review.rating).sort()).toEqual([
-      "easy",
-      "hard",
-    ]);
+    const saved = await db.select().from(reviews).where(eq(reviews.topicId, topic.id));
+    expect(saved.map((review) => review.rating).sort()).toEqual(["easy", "hard"]);
   });
 
   it("rejects an unknown rating", async () => {
     const topic = await createTopic(alice.id);
 
-    await agent
-      .post(`/api/topics/${topic.id}/reviews`)
-      .send({ rating: "perfect" })
-      .expect(400);
+    await agent.post(`/api/topics/${topic.id}/reviews`).send({ rating: "perfect" }).expect(400);
   });
 
   it("rejects a question from a different topic", async () => {
