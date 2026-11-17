@@ -12,7 +12,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "db:push": "drizzle-kit push",
-    "test": "NODE_ENV=test vitest run",
+    "test:integration": "NODE_ENV=test vitest run --project integration",
+    "test:unit": "NODE_ENV=test vitest run --project unit",
     "test:watch": "NODE_ENV=test vitest",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
