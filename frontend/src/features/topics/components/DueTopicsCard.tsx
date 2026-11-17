@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import type { Topic } from "../topics.api";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -53,6 +54,13 @@ export function DueTopicsCard({ topics }: { topics: Topic[] }) {
             );
           })}
         </ul>
+      )}
+      {topics.length > 0 && (
+        <Link
+          to="/review"
+          className="mt-4 flex min-h-12 w-full items-center justify-center rounded-lg bg-highlight font-semibold text-ink hover:brightness-95">
+          Start recall session
+        </Link>
       )}
     </section>
   );
