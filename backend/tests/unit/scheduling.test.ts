@@ -8,6 +8,7 @@ import {
   reviewOptions,
   scheduleFirstReview,
   scheduleReview,
+  MAX_FIRST_INTERVAL_DAYS,
 } from "../../src/lib/scheduling.ts";
 
 // A fixed time makes every result the same on every run
@@ -62,6 +63,16 @@ describe("scheduleFirstReview", () => {
   it("keeps a chosen date between 1 day and the maximum", () => {
     expect(scheduleFirstReview("okay", NOW, 0).memory.scheduledDays).toBe(1);
     expect(scheduleFirstReview("okay", NOW, 1000).memory.scheduledDays).toBe(MAX_INTERVAL_DAYS);
+  });
+
+  it("suggests a first review within a week, however confident the user is", () => {
+    for (const confidence of ["shaky", "okay", "solid"] as const) {
+      expect(scheduleFirstReview(confidence, NOW).memory.scheduledDays).toBeLessThanOrEqual(MAX_FIRST_INTERVAL_DAYS);
+    }
+  });
+
+  it("lets a chosen date go beyond the first-review limit", () => {
+    expect(scheduleFirstReview("solid", NOW, 10).memory.scheduledDays).toBe(10);
   });
 });
 

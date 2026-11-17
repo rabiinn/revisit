@@ -16,6 +16,7 @@ export type ReviewRating = (typeof REVIEW_RATINGS)[number];
 
 const DESIRED_RETENTION = 0.9;
 export const MAX_INTERVAL_DAYS = 365;
+export const MAX_FIRST_INTERVAL_DAYS = 7;
 
 // No LearningSteps middleware, so FSRS never schedules reviews minutes apart
 const scheduler = defineScheduler({ model: FSRS7Model, chrono: dateChrono })
@@ -157,11 +158,9 @@ export function scheduleFirstReview(confidence: Confidence, now = new Date(), ov
 
   const memory = fromCard(card, now);
 
-  // The user moved the date with + or -, so keep FSRS's memory but use their date
-  if (overrideDays !== undefined) {
-    memory.scheduledDays = toWholeDays(overrideDays);
-    memory.dueAt = daysFromToday(memory.scheduledDays, now);
-  }
+  const days = overrideDays ?? Math.min(memory.scheduledDays, MAX_FIRST_INTERVAL_DAYS);
+  memory.scheduledDays = toWholeDays(days);
+  memory.dueAt = daysFromToday(memory.scheduledDays, now);
 
   return { memory, log: toLogEntry(revlog, rating) };
 }
