@@ -1,0 +1,40 @@
+name: revisit
+services:
+  # Development database: keeps its data between restarts
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: revisit
+      POSTGRES_PASSWORD: revisit
+      POSTGRES_DB: revisit
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      # Postgres 18 stores its data in a versioned folder inside this path
+      - revisit_dev_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U revisit -d revisit"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # Test database: lives in memory, so it starts empty every time
+  db-test:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: revisit
+      POSTGRES_PASSWORD: revisit
+      POSTGRES_DB: revisit_test
+    ports:
+      - "127.0.0.1:5434:5432"
+    tmpfs:
+      - /var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U revisit -d revisit_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  revisit_dev_data:
