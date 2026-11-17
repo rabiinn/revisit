@@ -8,7 +8,10 @@ import {
 } from "@tanstack/react-router";
 import { ApiError } from "../../lib/api";
 import { useSuspenseQuery, type QueryClient } from "@tanstack/react-query";
-import { taskQueryOptions } from "../../features/tasks/tasks.api";
+import {
+  firstReviewOptionsQueryOptions,
+  taskQueryOptions,
+} from "../../features/tasks/tasks.api";
 import { type Task } from "../../features/tasks/task.schemas";
 import { FinishTaskForm } from "../../features/tasks/FinishTaskForm";
 
@@ -25,7 +28,10 @@ async function loadTask(queryClient: QueryClient, taskId: string): Promise<Task>
 
 export const Route = createFileRoute("/_app/tasks/$taskId/finish")({
   loader: async ({ context, params }) => {
-    const task = await loadTask(context.queryClient, params.taskId);
+    const [task] = await Promise.all([
+      loadTask(context.queryClient, params.taskId),
+      context.queryClient.query(firstReviewOptionsQueryOptions),
+    ]);
     if (task.completedAt) throw redirect({ to: "/" });
   },
   notFoundComponent: () => (

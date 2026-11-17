@@ -102,6 +102,7 @@ export function FinishTaskForm({ task, onDone }: FinishTaskFormProps) {
     const result = completeTaskFormSchema.safeParse({
       topics: topicsToSchedule,
       confidence,
+      note,
       // Without a chosen date, the backend uses FSRS's suggestion with its own clock
       reviewInDays: dayAdjustment !== 0 ? reviewInDays : undefined,
     });
