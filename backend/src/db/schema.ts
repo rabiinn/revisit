@@ -1,4 +1,6 @@
 import {
+  doublePrecision,
+  smallint,
   index,
   integer,
   pgEnum,
@@ -12,15 +14,9 @@ import { relations, sql } from "drizzle-orm";
 
 const id = () => uuid().primaryKey().defaultRandom();
 
-const createdAt = () =>
-  timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
+const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
 
-export const reviewRating = pgEnum("review_rating", [
-  "again",
-  "hard",
-  "good",
-  "easy",
-]);
+export const reviewRating = pgEnum("review_rating", ["again", "hard", "good", "easy"]);
 
 export const users = pgTable("users", {
   id: id(),
@@ -39,12 +35,7 @@ export const subjects = pgTable(
     name: text().notNull(),
     createdAt: createdAt(),
   },
-  (table) => [
-    uniqueIndex("subject_user_id_name_lower_idx").on(
-      table.userId,
-      sql`lower(${table.name})`,
-    ),
-  ],
+  (table) => [uniqueIndex("subject_user_id_name_lower_idx").on(table.userId, sql`lower(${table.name})`)],
 );
 
 export const tasks = pgTable(
@@ -80,9 +71,19 @@ export const topics = pgTable(
     }),
     name: text().notNull(),
     note: text(),
-    strength: integer().notNull().default(45),
-    intervalDays: integer("interval_days").notNull().default(1),
+
+    // FSRS memory state. Only lib/scheduling.ts calculates these values
+    stability: doublePrecision().notNull(),
+    stabilityFast: doublePrecision().notNull(),
+    difficulty: doublePrecision().notNull(),
+    fsrsState: smallint().notNull(),
+    scheduleStatus: text().notNull(),
+    reps: integer().notNull(),
+    lapses: integer().notNull(),
+    scheduledDays: integer().notNull(),
+    lastReviewAt: timestamp({ withTimezone: true }),
     dueAt: timestamp("due_at", { withTimezone: true }).notNull(),
+
     createdAt: createdAt(),
   },
   (table) => [index().on(table.userId, table.dueAt)],
@@ -113,13 +114,21 @@ export const reviews = pgTable(
       onDelete: "set null",
     }),
     rating: reviewRating().notNull(),
-    previousIntervalDays: integer("previous_interval_days").notNull(),
-    nextIntervalDays: integer("next_interval_days").notNull(),
-    reviewedAt: timestamp("reviewed_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }).notNull().defaultNow(),
+
+    // The memory state just before this review, so it can be undone or used to train FSRS
+    stateBefore: smallint().notNull(),
+    stabilityBefore: doublePrecision().notNull(),
+    stabilityFastBefore: doublePrecision().notNull(),
+    difficultyBefore: doublePrecision().notNull(),
+    scheduledDaysBefore: integer().notNull(),
+    dueAtBefore: timestamp({ withTimezone: true }).notNull(),
+    lastReviewAtBefore: timestamp({ withTimezone: true }),
+
+    // The interval this review chose
+    scheduledDays: integer().notNull(),
   },
-  (table) => [index().on(table.topicId)],
+  (table) => [index().on(table.topicId, table.reviewedAt)],
 );
 
 export const usersRelations = relations(users, ({ many }) => ({

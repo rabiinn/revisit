@@ -51,7 +51,7 @@ export const completeTaskFormSchema = z.object({
     ),
   confidence: z.enum(CONFIDENCE_LEVELS),
   note: optionalText(1000, "Keep the note under 1000 characters"),
-  reviewInDays: z.number().int().min(1).max(60),
+  reviewInDays: z.number().int().min(1).max(60).optional(),
 });
 
 export type TaskStatus = "open" | "completed" | "all";
