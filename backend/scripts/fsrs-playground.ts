@@ -28,7 +28,7 @@ const print = (label: string, value: unknown) => console.log(`\n=== ${label} ===
 
 const now = new Date("2026-11-17T10:00:00.000Z");
 
-const card = scheduler.newCard({ cardId: "playground-topic", now });
+const card = scheduler.newCard({ now });
 print("1. New card", card);
 
 const reviewed = scheduler.review({ card, grade: Rating.Good, now });
