@@ -1,15 +1,10 @@
 import { and, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { db } from "../../db/index.ts";
-import { tasks, topics } from "../../db/schema.ts";
+import { tasks, topics, reviews } from "../../db/schema.ts";
 import { AppError } from "../../lib/errors.ts";
-import { initialSchedule } from "../../lib/scheduling.ts";
+import { scheduleFirstReview } from "../../lib/scheduling.ts";
 import { findOrCreateSubject } from "../subjects/subjects.service.ts";
-import type {
-  CompleteTaskInput,
-  CreateTaskInput,
-  ListTasksQuery,
-  UpdateTaskInput,
-} from "./tasks.schemas.ts";
+import type { CompleteTaskInput, CreateTaskInput, ListTasksQuery, UpdateTaskInput } from "./tasks.schemas.ts";
 
 const withSubject = { subject: { columns: { id: true, name: true } } } as const;
 
@@ -21,11 +16,7 @@ function ownedTask(userId: string, taskId: string) {
 export function listTasks(userId: string, status: ListTasksQuery["status"]) {
   // If status == all, returned all tasks(undefined here means drizzle will discard the condition)
   const statusFilter =
-    status === "open"
-      ? isNull(tasks.completedAt)
-      : status === "completed"
-        ? isNotNull(tasks.completedAt)
-        : undefined;
+    status === "open" ? isNull(tasks.completedAt) : status === "completed" ? isNotNull(tasks.completedAt) : undefined;
 
   return db.query.tasks.findMany({
     where: and(eq(tasks.userId, userId), statusFilter),
@@ -47,9 +38,7 @@ export async function getTask(userId: string, taskId: string) {
 
 export async function createTask(userId: string, input: CreateTaskInput) {
   const taskId = await db.transaction(async (tx) => {
-    const subject = input.subjectName
-      ? await findOrCreateSubject(tx, userId, input.subjectName)
-      : undefined;
+    const subject = input.subjectName ? await findOrCreateSubject(tx, userId, input.subjectName) : undefined;
 
     const [task] = await tx
       .insert(tasks)
@@ -67,11 +56,7 @@ export async function createTask(userId: string, input: CreateTaskInput) {
 
   return getTask(userId, taskId);
 }
-export async function updateTask(
-  userId: string,
-  taskId: string,
-  input: UpdateTaskInput,
-) {
+export async function updateTask(userId: string, taskId: string, input: UpdateTaskInput) {
   await db.transaction(async (tx) => {
     let subjectId: string | null | undefined;
     if (input.subjectName === null) {
@@ -99,24 +84,22 @@ export async function updateTask(
 }
 
 export async function deleteTask(userId: string, taskId: string) {
-  const [deleted] = await db
-    .delete(tasks)
-    .where(ownedTask(userId, taskId))
-    .returning({ id: tasks.id });
+  const [deleted] = await db.delete(tasks).where(ownedTask(userId, taskId)).returning({ id: tasks.id });
 
   if (!deleted) throw new AppError(404, "Task not found");
 }
 
-export async function completeTask(
-  userId: string,
-  taskId: string,
-  input: CompleteTaskInput,
-) {
+export async function completeTask(userId: string, taskId: string, input: CompleteTaskInput) {
   const createdTopics = await db.transaction(async (tx) => {
+    // One timestamp for the whole action, so the task and it's topics match exactly
+    const now = new Date();
+
     // The completedAt check makes two simultaneous requests safe
     const [task] = await tx
       .update(tasks)
-      .set({ completedAt: new Date() })
+      .set({
+        completedAt: now,
+      })
       .where(and(ownedTask(userId, taskId), isNull(tasks.completedAt)))
       .returning();
 
@@ -125,16 +108,16 @@ export async function completeTask(
         where: ownedTask(userId, taskId),
         columns: { id: true },
       });
-      throw exists
-        ? new AppError(409, "Task is already completed")
-        : new AppError(404, "Task not found");
+
+      throw exists ? new AppError(409, "Task is already completed") : new AppError(404, "Task not found");
     }
 
     if (input.topics.length === 0) return [];
 
-    const schedule = initialSchedule(input.confidence, input.reviewInDays);
+    // Every topic from this task gets the same confidence, so schedule once
 
-    return tx
+    const { memory, log } = scheduleFirstReview(input.confidence, now, input.reviewInDays);
+    const created = await tx
       .insert(topics)
       .values(
         input.topics.map((name) => ({
@@ -143,10 +126,21 @@ export async function completeTask(
           subjectId: task.subjectId,
           name,
           note: input.note || null,
-          ...schedule,
+          ...memory,
         })),
       )
       .returning();
+
+    // Your confidence was a real first rating, so log it like any other review
+    await tx.insert(reviews).values(
+      created.map((topic) => ({
+        topicId: topic.id,
+        ...log,
+        scheduledDays: memory.scheduledDays,
+      })),
+    );
+
+    return created;
   });
 
   return { task: await getTask(userId, taskId), topics: createdTopics };
