@@ -1,7 +1,7 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "../../src/db/index.ts";
-import { tasks, topics } from "../../src/db/schema.ts";
+import { tasks, topics, reviews } from "../../src/db/schema.ts";
 import { daysFromToday } from "../../src/lib/scheduling.ts";
 import { api, loginAs } from "../helpers/auth.ts";
 import { createTask, seedUsers } from "../helpers/factories.ts";
@@ -40,13 +40,8 @@ describe("POST /api/tasks", () => {
   });
 
   it("reuses a subject regardless of letter case", async () => {
-    const first = await agent
-      .post("/api/tasks")
-      .send({ title: "Read chapter 7", subjectName: "Databases" });
-    const second = await agent
-      .post("/api/tasks")
-      .send({ title: "Read chapter 8", subjectName: "  databases " });
-    console.log(second.body);
+    const first = await agent.post("/api/tasks").send({ title: "Read chapter 7", subjectName: "Databases" });
+    const second = await agent.post("/api/tasks").send({ title: "Read chapter 8", subjectName: "  databases " });
     expect(second.body.task.subject.id).toBe(first.body.task.subject.id);
 
     const subjects = await agent.get("/api/subjects");
@@ -66,9 +61,7 @@ describe("GET /api/tasks", () => {
     const res = await agent.get("/api/tasks?status=open");
 
     expect(res.status).toBe(200);
-    expect(res.body.tasks.map((task: { title: string }) => task.title)).toEqual(
-      ["Open task"],
-    );
+    expect(res.body.tasks.map((task: { title: string }) => task.title)).toEqual(["Open task"]);
   });
 
   it("rejects an unknown status", async () => {
@@ -106,13 +99,9 @@ describe("task ownership", () => {
 
 describe("PATCH /api/tasks/:id", () => {
   it("updates fields and can remove the subject", async () => {
-    const created = await agent
-      .post("/api/tasks")
-      .send({ title: "Old title", subjectName: "Databases" });
+    const created = await agent.post("/api/tasks").send({ title: "Old title", subjectName: "Databases" });
 
-    const res = await agent
-      .patch(`/api/tasks/${created.body.task.id}`)
-      .send({ title: "New title", subjectName: null });
+    const res = await agent.patch(`/api/tasks/${created.body.task.id}`).send({ title: "New title", subjectName: null });
 
     expect(res.status).toBe(200);
     expect(res.body.task).toMatchObject({ title: "New title", subject: null });
@@ -141,18 +130,16 @@ describe("DELETE /api/tasks/:id", () => {
 
     await agent.delete(`/api/tasks/${task.id}`).expect(204);
 
-    const remaining = await db
-      .select()
-      .from(topics)
-      .where(eq(topics.userId, alice.id));
+    const remaining = await db.select().from(topics).where(eq(topics.userId, alice.id));
     expect(remaining).toHaveLength(1);
     expect(remaining[0]?.taskId).toBeNull();
   });
 });
 
 describe("POST /api/tasks/:id/complete", () => {
-  it("completes the task and schedules its topics", async () => {
+  it("completes the task and schedules its topics with FSRS", async () => {
     const task = await createTask(alice.id);
+    const { options } = (await agent.get("/api/scheduling/first-review-options")).body;
 
     const res = await agent.post(`/api/tasks/${task.id}/complete`).send({
       topics: ["Hash joins", "Query optimizer"],
@@ -167,24 +154,42 @@ describe("POST /api/tasks/:id/complete", () => {
     for (const topic of res.body.topics) {
       expect(topic).toMatchObject({
         taskId: task.id,
-        strength: 25,
-        intervalDays: 1,
         note: "I mix up build and probe",
-        dueAt: daysFromToday(1).toISOString(),
+        reps: 1,
+        lapses: 0,
+        scheduledDays: options.shaky,
+        dueAt: daysFromToday(options.shaky).toISOString(),
       });
+      expect(topic.stability).toBeGreaterThan(0);
+    }
+  });
+
+  it("logs the confidence as each topic's first review", async () => {
+    const task = await createTask(alice.id);
+
+    const res = await agent
+      .post(`/api/tasks/${task.id}/complete`)
+      .send({ topics: ["Hash joins", "Query optimizer"], confidence: "okay" });
+
+    const topicIds = res.body.topics.map((topic: { id: string }) => topic.id);
+    const logged = await db.select().from(reviews).where(inArray(reviews.topicId, topicIds));
+
+    expect(logged).toHaveLength(2);
+    for (const review of logged) {
+      // Okay counts as Good, and the topic was brand new before it
+      expect(review).toMatchObject({ rating: "good", stateBefore: 0 });
+      expect(review.scheduledDays).toBe(res.body.topics[0].scheduledDays);
     }
   });
 
   it("lets the user choose the first review date", async () => {
     const task = await createTask(alice.id);
 
-    const res = await agent
-      .post(`/api/tasks/${task.id}/complete`)
-      .send({ topics: ["Hash joins"], reviewInDays: 5 });
+    const res = await agent.post(`/api/tasks/${task.id}/complete`).send({ topics: ["Hash joins"], reviewInDays: 10 });
 
     expect(res.body.topics[0]).toMatchObject({
-      intervalDays: 5,
-      dueAt: daysFromToday(5).toISOString(),
+      scheduledDays: 10,
+      dueAt: daysFromToday(10).toISOString(),
     });
   });
 
@@ -227,10 +232,7 @@ describe("POST /api/tasks/:id/reopen", () => {
     expect(res.status).toBe(200);
     expect(res.body.task.completedAt).toBeNull();
 
-    const kept = await db
-      .select()
-      .from(topics)
-      .where(eq(topics.taskId, task.id));
+    const kept = await db.select().from(topics).where(eq(topics.taskId, task.id));
     expect(kept).toHaveLength(1);
   });
 });
