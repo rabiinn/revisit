@@ -5,34 +5,29 @@ import {
   completeTaskFormSchema,
   topicNameSchema,
 } from "./task.schemas";
-import { useCompleteTask } from "./tasks.api";
+import { firstReviewOptionsQueryOptions, useCompleteTask } from "./tasks.api";
 import type { SubmitEvent } from "react";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
 import type { Task } from "./task.schemas";
+import { useSuspenseQuery } from "@tanstack/react-query";
 
 const MAX_TOPICS = 10;
 const MAX_REVIEW_DAYS = 60;
 
-const CONFIDENCE_DETAILS: Record<
-  Confidence,
-  { label: string; days: number; reason: string }
-> = {
+const CONFIDENCE_DETAILS: Record<Confidence, { label: string; reason: string }> = {
   shaky: {
     label: "Shaky",
-    days: 1,
-    reason: "This feels shaky, so a quick return tomorrow catches it before it fades.",
+    reason: "This feels shaky, so a quick return catches it before it fades.",
   },
   okay: {
     label: "Okay",
-    days: 2,
     reason:
       "You know this reasonably well, so a short gap makes recall take some effort.",
   },
   solid: {
     label: "Solid",
-    days: 4,
-    reason: "This feels solid, so a longer gap makes the first recall a real test.",
+    reason: "This feels solid, but a first check within a week makes sure it sticks.",
   },
 };
 
@@ -53,6 +48,8 @@ type FinishTaskFormProps = {
 
 export function FinishTaskForm({ task, onDone }: FinishTaskFormProps) {
   const completeTask = useCompleteTask();
+
+  const { data: suggestedDays } = useSuspenseQuery(firstReviewOptionsQueryOptions);
   const [topics, setTopics] = useState<string[]>([]);
   const [topicInput, setTopicInput] = useState("");
   const [topicError, setTopicError] = useState<string>();
@@ -62,7 +59,7 @@ export function FinishTaskForm({ task, onDone }: FinishTaskFormProps) {
   const [formError, setFormError] = useState<string>();
 
   // Calculated from state on every render, so it's never out of sync
-  const baseDays = CONFIDENCE_DETAILS[confidence].days;
+  const baseDays = suggestedDays[confidence];
 
   const reviewInDays = Math.min(MAX_REVIEW_DAYS, Math.max(1, baseDays + dayAdjustment));
 
@@ -106,7 +103,8 @@ export function FinishTaskForm({ task, onDone }: FinishTaskFormProps) {
       topics: topicsToSchedule,
       confidence,
       note,
-      reviewInDays,
+      // Without a chosen date, the backend uses FSRS's suggestion with its own clock
+      reviewInDays: dayAdjustment !== 0 ? reviewInDays : undefined,
     });
 
     if (!result.success) {

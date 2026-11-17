@@ -27,6 +27,7 @@ const scheduler = definition.create({
 const print = (label: string, value: unknown) => console.log(`\n=== ${label} ===\n${JSON.stringify(value, null, 2)}`);
 
 const now = new Date("2026-11-17T10:00:00.000Z");
+console.log(now);
 
 const card = scheduler.newCard({ now });
 print("1. New card", card);

@@ -12,6 +12,7 @@ import type {
   TasksResponse,
   TaskStatus,
   UpdateTaskInput,
+  Confidence,
 } from "./task.schemas";
 import { api } from "../../lib/api";
 
@@ -40,6 +41,21 @@ export function taskQueryOptions(id: string) {
     },
   });
 }
+
+export type FirstReviewOptions = Record<Confidence, number>;
+
+export const firstReviewOptionsQueryOptions = queryOptions({
+  queryKey: ["scheduling", "first-review-options"],
+  queryFn: async ({ signal }) => {
+    const { options } = await api.get<{ options: FirstReviewOptions }>(
+      "/scheduling/first-review-options",
+      signal,
+    );
+    return options;
+  },
+  // The suggestion only changes once a day, so there's no need to refetch it often
+  staleTime: 60 * 60_000,
+});
 
 function invalidateTaskData(queryClient: QueryClient) {
   return Promise.all([

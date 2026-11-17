@@ -2,13 +2,9 @@ import { and, asc, desc, eq, lte } from "drizzle-orm";
 import { db } from "../../db/index.ts";
 import { questions, reviews, topics } from "../../db/schema.ts";
 import { AppError } from "../../lib/errors.ts";
-import { reviewOptions, scheduleReview } from "../../lib/scheduling.ts";
+import { recallProbability, reviewOptions, scheduleReview, type MemoryState } from "../../lib/scheduling.ts";
 import { findOrCreateSubject } from "../subjects/subjects.service.ts";
-import type {
-  CreateReviewInput,
-  ListTopicsQuery,
-  UpdateTopicInput,
-} from "./topics.schemas.ts";
+import type { CreateReviewInput, ListTopicsQuery, UpdateTopicInput } from "./topics.schemas.ts";
 
 const withLinks = {
   subject: { columns: { id: true, name: true } },
@@ -19,12 +15,17 @@ function ownedTopic(userId: string, topicId: string) {
   return and(eq(topics.id, topicId), eq(topics.userId, userId));
 }
 
-// T can be any type, as long as it has intervalDays
-function withReviewOptions<T extends { intervalDays: number }>(topic: T) {
-  return { ...topic, reviewOptions: reviewOptions(topic.intervalDays) };
+// Adds what the frontend shows for each topic: the memory bar and the rating buttons
+function withMemoryInfo<T extends MemoryState>(topic: T, now: Date) {
+  return {
+    ...topic,
+    recallProbability: recallProbability(topic, now),
+    reviewOptions: reviewOptions(topic, now),
+  };
 }
 
 export async function listTopics(userId: string, query: ListTopicsQuery) {
+  const now = new Date();
   const rows = await db.query.topics.findMany({
     where: and(
       eq(topics.userId, userId),
@@ -35,7 +36,7 @@ export async function listTopics(userId: string, query: ListTopicsQuery) {
     orderBy: [asc(topics.dueAt), asc(topics.name)],
   });
 
-  return rows.map(withReviewOptions);
+  return rows.map((topic) => withMemoryInfo(topic, now));
 }
 
 export async function getTopic(userId: string, topicId: string) {
@@ -49,14 +50,10 @@ export async function getTopic(userId: string, topicId: string) {
   });
 
   if (!topic) throw new AppError(404, "Topic not found");
-  return withReviewOptions(topic);
+  return withMemoryInfo(topic, new Date());
 }
 
-export async function updateTopic(
-  userId: string,
-  topicId: string,
-  input: UpdateTopicInput,
-) {
+export async function updateTopic(userId: string, topicId: string, input: UpdateTopicInput) {
   await db.transaction(async (tx) => {
     let subjectId: string | null | undefined;
     if (input.subjectName === null) {
@@ -82,61 +79,42 @@ export async function updateTopic(
 }
 
 export async function deleteTopic(userId: string, topicId: string) {
-  const [deleted] = await db
-    .delete(topics)
-    .where(ownedTopic(userId, topicId))
-    .returning({ id: topics.id });
+  const [deleted] = await db.delete(topics).where(ownedTopic(userId, topicId)).returning({ id: topics.id });
 
   if (!deleted) throw new AppError(404, "Topic not found");
 }
 
-export async function reviewTopic(
-  userId: string,
-  topicId: string,
-  input: CreateReviewInput,
-) {
+export async function reviewTopic(userId: string, topicId: string, input: CreateReviewInput) {
   return db.transaction(async (tx) => {
+    const now = new Date();
     // Lock the row so simultaneous reviews can't overwrite each other
-    const [topic] = await tx
-      .select()
-      .from(topics)
-      .where(ownedTopic(userId, topicId))
-      .for("update");
+    const [topic] = await tx.select().from(topics).where(ownedTopic(userId, topicId)).for("update");
 
     if (!topic) throw new AppError(404, "Topic not found");
 
     if (input.questionId) {
       const question = await tx.query.questions.findFirst({
-        where: and(
-          eq(questions.id, input.questionId),
-          eq(questions.topicId, topic.id),
-        ),
+        where: and(eq(questions.id, input.questionId), eq(questions.topicId, topic.id)),
         columns: { id: true },
       });
-      if (!question)
-        throw new AppError(400, "Question does not belong to this topic");
+      if (!question) throw new AppError(400, "Question does not belong to this topic");
     }
 
-    const next = scheduleReview(topic, input.rating);
+    const { memory, log } = scheduleReview(topic, input.rating, now);
 
-    const [updated] = await tx
-      .update(topics)
-      .set(next)
-      .where(eq(topics.id, topic.id))
-      .returning();
+    const [updated] = await tx.update(topics).set(memory).where(eq(topics.id, topic.id)).returning();
 
     const [review] = await tx
       .insert(reviews)
       .values({
         topicId: topic.id,
         questionId: input.questionId,
-        rating: input.rating,
-        previousIntervalDays: topic.intervalDays,
-        nextIntervalDays: next.intervalDays,
+        ...log,
+        scheduledDays: memory.scheduledDays,
       })
       .returning();
 
     if (!updated || !review) throw new Error("Review could not be saved");
-    return { topic: withReviewOptions(updated), review };
+    return { topic: withMemoryInfo(updated, now), review };
   });
 }

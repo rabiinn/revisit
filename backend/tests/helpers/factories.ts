@@ -3,6 +3,7 @@ import { users, questions, topics } from "../../src/db/schema.ts";
 import { hashPassword } from "../../src/lib/password.ts";
 import { SEED_USERS, type SeedUserKey } from "../fixtures/users.ts";
 import { tasks } from "../../src/db/schema.ts";
+import { scheduleFirstReview } from "../../src/lib/scheduling.ts";
 
 export type TestUser = { id: string; email: string; password: string };
 type TaskOverrides = Partial<Omit<typeof tasks.$inferInsert, "userId">>;
@@ -21,9 +22,7 @@ function cachedHash(password: string) {
 
 let userCount = 0;
 
-export async function createUser(
-  overrides: { email?: string; password?: string } = {},
-): Promise<TestUser> {
+export async function createUser(overrides: { email?: string; password?: string } = {}): Promise<TestUser> {
   userCount += 1;
   const email = overrides.email ?? `user${userCount}@example.com`;
   const password = overrides.password ?? "password-123";
@@ -39,17 +38,12 @@ export async function createUser(
 
 export async function seedUsers() {
   const entries = await Promise.all(
-    Object.entries(SEED_USERS).map(
-      async ([key, data]) => [key, await createUser(data)] as const,
-    ),
+    Object.entries(SEED_USERS).map(async ([key, data]) => [key, await createUser(data)] as const),
   );
   return Object.fromEntries(entries) as Record<SeedUserKey, TestUser>;
 }
 
-export async function createTask(
-  userId: string,
-  overrides: TaskOverrides = {},
-) {
+export async function createTask(userId: string, overrides: TaskOverrides = {}) {
   const [task] = await db
     .insert(tasks)
     .values({ userId, title: "Read chapter 1", ...overrides })
@@ -61,34 +55,28 @@ export async function createTask(
 
 type TopicOverrides = Partial<Omit<typeof topics.$inferInsert, "userId">>;
 
-export async function createTopic(
-  userId: string,
-  overrides: TopicOverrides = {},
-) {
+export async function createTopic(userId: string, overrides: TopicOverrides = {}) {
+  // A real FSRS state, as if the topic had just been studied with "Okay"
+  const { memory } = scheduleFirstReview("okay", new Date());
+
   const [topic] = await db
     .insert(topics)
-    .values({ userId, name: "Hash joins", dueAt: new Date(), ...overrides })
+    .values({ userId, name: "Hash joins", ...memory, ...overrides })
     .returning();
 
   if (!topic) throw new Error("Failed to create test topic");
   return topic;
 }
 
-type QuestionOverrides = Partial<
-  Omit<typeof questions.$inferInsert, "topicId">
->;
+type QuestionOverrides = Partial<Omit<typeof questions.$inferInsert, "topicId">>;
 
-export async function createQuestion(
-  topicId: string,
-  overrides: QuestionOverrides = {},
-) {
+export async function createQuestion(topicId: string, overrides: QuestionOverrides = {}) {
   const [question] = await db
     .insert(questions)
     .values({
       topicId,
       question: "How does a hash join work?",
-      answer:
-        "It builds a hash table from one input, then probes it with the other.",
+      answer: "It builds a hash table from one input, then probes it with the other.",
       ...overrides,
     })
     .returning();

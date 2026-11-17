@@ -9,6 +9,6 @@ export const pool = new Pool({
   max: env.DATABASE_POOL_MAX,
 });
 
-export const db = drizzle({ client: pool, schema });
+export const db = drizzle({ client: pool, schema, casing: "snake_case" });
 
 export type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
