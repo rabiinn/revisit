@@ -4,8 +4,15 @@ import { tasksQueryOptions } from "../../features/tasks/tasks.api";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { TaskRow } from "../../features/tasks/TaskRow";
 import { AddTaskForm } from "../../features/tasks/AddTaskForm";
+import { DueTopicsCard } from "../../features/topics/components/DueTopicsCard";
+import { topicsQueryOptions } from "../../features/topics/topics.api";
+
 export const Route = createFileRoute("/_app/")({
-  loader: ({ context }) => context.queryClient.query(tasksQueryOptions()),
+  loader: ({ context }) =>
+    Promise.all([
+      context.queryClient.query(tasksQueryOptions()),
+      context.queryClient.query(topicsQueryOptions({ dueOnly: true })),
+    ]),
   errorComponent: () => (
     <p role="alert" className="rounded-lg bg-notice px-4 py-3 font-medium">
       Your tasks could not be loaded. Please refresh the page.
@@ -21,6 +28,7 @@ function plural(count: number, word: string) {
 
 function TodayPage() {
   const { data: tasks } = useSuspenseQuery(tasksQueryOptions());
+  const { data: dueTopics } = useSuspenseQuery(topicsQueryOptions({ dueOnly: true }));
 
   const openCount = tasks.filter((task) => !task.completedAt).length;
 
@@ -35,7 +43,8 @@ function TodayPage() {
       <div>
         <p className="font-mono text-sm text-muted">{today}</p>
         <h1 className="mt-1 text-4xl font-bold tracking-tight">
-          {plural(openCount, "task")} to study
+          {plural(openCount, "task")} to study, {plural(dueTopics.length, "topic")} to
+          recall
         </h1>
       </div>
 
@@ -59,16 +68,7 @@ function TodayPage() {
             </ul>
           )}
         </section>
-        <section
-          aria-labelledby="due-heading"
-          className="min-w-0 flex-[1_1_340px] rounded-xl bg-ink p-6 text-white">
-          <h2 id="due-heading" className="text-xl font-semibold">
-            Due for recall
-          </h2>
-          <p className="mt-1 text-sm text-white/75">
-            Topics due for review will appear here.
-          </p>
-        </section>
+        <DueTopicsCard topics={dueTopics} />
       </div>
     </div>
   );
