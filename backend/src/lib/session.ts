@@ -17,7 +17,7 @@ export const sessionCookieOptions: CookieOptions = {
 export const sessionMaxAge = SESSION_SECONDS * 1000;
 
 export function createSessionToken(userId: string) {
-  return new SignJWT({ id: userId, name: "Rabin Adhikari", ghar: "Nepal" })
+  return new SignJWT()
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(userId)
     .setIssuedAt()
